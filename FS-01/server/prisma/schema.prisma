@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum Role {
+  CUSTOMER
+  VENDOR
+  ADMIN
+}
+enum OrderStatus {
+  PLACED
+  PACKED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  password       String
+  role           Role     @default(CUSTOMER)
+  vendorApproved Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  products       Product[]
+  orders         Order[] @relation("BuyerOrders")
+  reviews        Review[]
+}
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  price       Decimal  @db.Decimal(10,2)
+  stock       Int      @default(0)
+  category    String
+  imageUrl    String?
+  active      Boolean  @default(true)
+  vendorId    String
+  vendor      User     @relation(fields: [vendorId], references: [id])
+  reviews     Review[]
+  createdAt   DateTime @default(now())
+  @@index([name, category])
+}
+model Order {
+  id               String      @id @default(cuid())
+  buyerId          String
+  buyer            User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  status           OrderStatus @default(PLACED)
+  subtotal         Decimal     @db.Decimal(10,2)
+  commission       Decimal     @db.Decimal(10,2)
+  total            Decimal     @db.Decimal(10,2)
+  paymentReference String?
+  items            OrderItem[]
+  createdAt        DateTime    @default(now())
+}
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  productName String
+  vendorId    String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10,2)
+}
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  comment   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+model Coupon {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  discountPercent Int
+  active          Boolean  @default(true)
+  expiresAt       DateTime?
+}

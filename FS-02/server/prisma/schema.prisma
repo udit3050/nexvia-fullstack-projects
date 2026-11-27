@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum WorkspaceRole {
+  OWNER
+  EDIT
+  COMMENT
+  VIEW
+  @@map("workspace_role")
+}
+model User {
+  id         String       @id @default(cuid())
+  name       String
+  email      String       @unique
+  password   String
+  createdAt  DateTime     @default(now())
+  memberships Membership[]
+  comments   Comment[]
+  @@map("workspace_users")
+}
+model Workspace {
+  id        String       @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime     @default(now())
+  members   Membership[]
+  pages     Page[]
+  @@map("workspace_spaces")
+}
+model Membership {
+  id          String        @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        WorkspaceRole @default(EDIT)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@unique([userId, workspaceId])
+  @@map("workspace_memberships")
+}
+model Page {
+  id          String     @id @default(cuid())
+  title       String
+  content     Json?
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  snapshots   Snapshot[]
+  comments    Comment[]
+  updatedAt   DateTime   @updatedAt
+  @@map("workspace_pages")
+}
+model Snapshot {
+  id        String   @id @default(cuid())
+  pageId    String
+  content   Json
+  createdAt DateTime @default(now())
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  @@map("workspace_snapshots")
+}
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  userId    String
+  pageId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  @@map("workspace_comments")
+}

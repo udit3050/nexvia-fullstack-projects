@@ -5,8 +5,8 @@ services:
     plan: free
     region: singapore
     rootDir: FS-01/server
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npx prisma migrate deploy && npm start
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma db push && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -29,24 +29,24 @@ services:
           name: nexvia-fs01-redis
           property: connectionString
       - key: CLIENT_URL
-        value: https://nexvia-fs01-web.onrender.com
+        value: https://nexvia-fs01-web-m4ix.onrender.com
   - type: web
     name: nexvia-fs01-web
     runtime: static
     rootDir: FS-01/client
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
-        value: https://nexvia-fs01-api.onrender.com/api
+        value: https://nexvia-fs01-api-m4ix.onrender.com/api
   - type: web
     name: nexvia-fs02-api
     runtime: node
     plan: free
     region: singapore
     rootDir: FS-02/server
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npx prisma migrate deploy && npm start
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma db push && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -57,38 +57,32 @@ services:
         generateValue: true
       - key: DATABASE_URL
         fromDatabase:
-          name: nexvia-fs02-db
+          name: nexvia-fs01-db
           property: connectionString
       - key: CLIENT_URL
-        value: https://nexvia-fs02-web.onrender.com
+        value: https://nexvia-fs02-web-m4ix.onrender.com
   - type: web
     name: nexvia-fs02-yjs
     runtime: node
-    plan: starter
+    plan: free
     region: singapore
     rootDir: FS-02/server
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install
     startCommand: npm run yjs
-    disk:
-      name: yjs-data
-      mountPath: /opt/render/project/src/.yjs-data
-      sizeGB: 1
     envVars:
       - key: PORT
         value: "10000"
-      - key: YPERSISTENCE
-        value: /opt/render/project/src/.yjs-data
   - type: web
     name: nexvia-fs02-web
     runtime: static
     rootDir: FS-02/client
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
-        value: https://nexvia-fs02-api.onrender.com/api
+        value: https://nexvia-fs02-api-m4ix.onrender.com/api
       - key: VITE_YJS_URL
-        value: wss://nexvia-fs02-yjs.onrender.com
+        value: wss://nexvia-fs02-yjs-m4ix.onrender.com
   - type: keyvalue
     name: nexvia-fs01-redis
     plan: free
@@ -101,8 +95,3 @@ databases:
     region: singapore
     databaseName: nexvia_marketplace
     user: nexvia_marketplace
-  - name: nexvia-fs02-db
-    plan: free
-    region: singapore
-    databaseName: nexvia_workspace
-    user: nexvia_workspace
