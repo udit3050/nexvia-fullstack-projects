@@ -88,32 +88,32 @@ app.post("/api/cart",auth,async(req:AuthReq,res)=>{
   if(!parsed.success)return res.status(400).json({error:"Invalid cart item"});
   const product=await db.product.findUnique({where:{id:parsed.data.productId}});
   if(!product||!product.active||product.stock<parsed.data.quantity)return res.status(400).json({error:"Product unavailable or insufficient stock"});
-  const key=`cart:${req.user!.id}`; let cart:any[]=[];
-  if(redis){try{cart=JSON.parse((await redis.get(key))||"[]");}catch{}}
-  const existing=cart.find(x=>x.productId===product.id);
-  if(existing)existing.quantity=parsed.data.quantity;else cart.push(parsed.data);
-  if(redis)await redis.set(key,JSON.stringify(cart),"EX",86400);
-  res.json({items:cart});
+  const item=await db.cartItem.upsert({
+    where:{userId_productId:{userId:req.user!.id,productId:product.id}},
+    update:{quantity:parsed.data.quantity},
+    create:{userId:req.user!.id,productId:product.id,quantity:parsed.data.quantity}
+  });
+  const items=await db.cartItem.findMany({where:{userId:req.user!.id}});
+  res.json({item,items});
 });
 app.get("/api/cart",auth,async(req:AuthReq,res)=>{
-  let items:any[]=[];if(redis){try{items=JSON.parse((await redis.get(`cart:${req.user!.id}`))||"[]");}catch{}}
-  const hydrated=await Promise.all(items.map(async i=>({...(await db.product.findUnique({where:{id:i.productId}})),quantity:i.quantity})));
-  res.json(hydrated.filter(Boolean));
+  const items=await db.cartItem.findMany({where:{userId:req.user!.id},include:{product:{include:{vendor:{select:{name:true}}}}}});
+  res.json(items.map(i=>({...i.product,quantity:i.quantity})));
 });
 app.post("/api/checkout",auth,async(req:AuthReq,res)=>{
-  let items:any[]=[];if(redis){try{items=JSON.parse((await redis.get(`cart:${req.user!.id}`))||"[]");}catch{}}
-  if(!items.length)return res.status(400).json({error:"Cart is empty"});
+  const cart=await db.cartItem.findMany({where:{userId:req.user!.id},include:{product:true}});
+  if(!cart.length)return res.status(400).json({error:"Cart is empty"});
   try{
     const order=await db.$transaction(async tx=>{
-      const products=await Promise.all(items.map(i=>tx.product.findUnique({where:{id:i.productId}})));
-      if(products.some((p,i)=>!p||p.stock<items[i].quantity||!p.active))throw new Error("Stock changed; refresh your cart");
-      const subtotal=products.reduce((s,p,i)=>s+Number(p!.price)*items[i].quantity,0);
+      const products=await Promise.all(cart.map(i=>tx.product.findUnique({where:{id:i.productId}})));
+      if(products.some((p,i)=>!p||p.stock<cart[i].quantity||!p.active))throw new Error("Stock changed; refresh your cart");
+      const subtotal=products.reduce((s,p,i)=>s+Number(p!.price)*cart[i].quantity,0);
       const commission=Number((subtotal*Number(process.env.PLATFORM_COMMISSION_PERCENT||10)/100).toFixed(2));
-      const created=await tx.order.create({data:{buyerId:req.user!.id,subtotal,commission,total:subtotal, paymentReference:`TEST_${Date.now()}`,items:{create:products.map((p,i)=>({productId:p!.id,productName:p!.name,vendorId:p!.vendorId,quantity:items[i].quantity,unitPrice:p!.price}))}},include:{items:true}});
-      for(let i=0;i<products.length;i++)await tx.product.update({where:{id:products[i]!.id},data:{stock:{decrement:items[i].quantity}}});
+      const created=await tx.order.create({data:{buyerId:req.user!.id,subtotal,commission,total:subtotal,paymentReference:`TEST_${Date.now()}`,items:{create:products.map((p,i)=>({productId:p!.id,productName:p!.name,vendorId:p!.vendorId,quantity:cart[i].quantity,unitPrice:p!.price}))}},include:{items:true}});
+      for(let i=0;i<products.length;i++)await tx.product.update({where:{id:products[i]!.id},data:{stock:{decrement:cart[i].quantity}}});
+      await tx.cartItem.deleteMany({where:{userId:req.user!.id}});
       return created;
     });
-    if(redis)await redis.del(`cart:${req.user!.id}`);
     res.status(201).json({order,payment:{mode:"test",status:"authorized",reference:order.paymentReference},message:"Test checkout completed. No real money was charged."});
   }catch(e:any){res.status(400).json({error:e.message||"Checkout failed"});}
 });
