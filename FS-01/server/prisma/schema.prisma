@@ -32,6 +32,7 @@ model User {
   products       Product[]
   orders         Order[] @relation("BuyerOrders")
   reviews        Review[]
+  cartItems      CartItem[]
   @@schema("marketplace")
 }
 model Product {
@@ -46,6 +47,7 @@ model Product {
   vendorId    String
   vendor      User     @relation(fields: [vendorId], references: [id])
   reviews     Review[]
+  cartItems   CartItem[]
   createdAt   DateTime @default(now())
   @@index([name, category])
   @@schema("marketplace")
@@ -91,5 +93,16 @@ model Coupon {
   discountPercent Int
   active          Boolean  @default(true)
   expiresAt       DateTime?
+  @@schema("marketplace")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  quantity  Int      @default(1)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@unique([userId, productId])
   @@schema("marketplace")
 }
