@@ -4,11 +4,13 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["marketplace"]
 }
 enum Role {
   CUSTOMER
   VENDOR
   ADMIN
+  @@schema("marketplace")
 }
 enum OrderStatus {
   PLACED
